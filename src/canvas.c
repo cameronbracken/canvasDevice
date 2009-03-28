@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include <R.h>
 #include <Rversion.h>
 #include <Rinternals.h>
@@ -17,7 +19,7 @@ typedef struct _canvasDesc {
 	short lwd;
 	int lty;
 	float miterLimit;
-	char *file;
+	FILE *fp;
 	pGEDevDesc RGE;
 } canvasDesc;
 
@@ -51,6 +53,9 @@ static void canvasCircle(double x, double y, double r, const pGEcontext gc, pDev
 {
 	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
 
+	
+	fprintf(cGD->fp,"ctx.beginPath(); ctx.arc(%f,%f,%f,0,Math.PI*2,true); ctx.stroke();\n", x, y, r);
+
 #ifdef CANVASDEBUG
 	Rprintf("Circle(x=%f,y=%f,r=%f,gc=0x%x,RGD=0x%x)\n",x,y,r,gc,RGD);
 	/*Rprintf("\tuser coords: x=%f,y=%f\n",fromDeviceX(x,GE_NDC,MGD->RGE),fromDeviceY(y,GE_NDC,MGD->RGE));*/
@@ -59,21 +64,28 @@ static void canvasCircle(double x, double y, double r, const pGEcontext gc, pDev
 
 static void canvasClip(double x0, double x1, double y0, double y1, pDevDesc RGD)
 {
+	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
+/*	fprintf(cGD->fp,"ctx.beginPath(); ");
+	fprintf(cGD->fp,"ctx.rect(%f,%f,%f,%f); ",x0,y0,x1-x0,y1-y0);
+	fprintf(cGD->fp,"ctx.clip();\n");*/
 #ifdef CANVASDEBUG
 	Rprintf("Clip(x0=%f,y0=%f,x1=%f,y1=%f,RGD=0x%x)\n",x0,y0,x1,y1,RGD);
 #endif
 }
+
 static void canvasClose(pDevDesc RGD)
 {
 	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
 
 	/* Save plot */
+	fclose(cGD->fp);
 	free(cGD);
 	RGD->deviceSpecific = NULL;
 #ifdef CANVASDEBUG
 	Rprintf("Close(RGD=0x%x)\n",RGD);
 #endif
 }
+
 static void canvasDeactivate(pDevDesc RGD)
 {
 #ifdef CANVASDEBUG
@@ -90,6 +102,9 @@ static Rboolean canvasLocator(double *x, double *y, pDevDesc RGD)
 static void canvasLine(double x1, double y1, double x2, double y2, const pGEcontext gc, pDevDesc RGD)
 {
 	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
+
+	fprintf(cGD->fp,"ctx.beginPath(); ctx.moveTo(%f,%f); ctx.lineTo(%f,%f); ctx.stroke();\n",x1,y1,x2,y2);
+
 #ifdef CANVASDEBUG
 	Rprintf("Line(x0=%f,y0=%f,x1=%f,y1=%f,gc=0x%x,RGD=0x%x)\n",x1,y1,x2,y2,gc,RGD);
 #endif
@@ -111,6 +126,7 @@ static void canvasMode(int mode, pDevDesc RGD)
 static void canvasNewPage(const pGEcontext gc, pDevDesc RGD)
 {
 	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
+	fprintf(cGD->fp,"/* NewPage */\n");
 #ifdef CANVASDEBUG
 	Rprintf("NewPage(gc=0x%x,RGD=0x%x)\n",gc,RGD);
 #endif
@@ -131,6 +147,13 @@ static void canvasPolygon(int n, double *x, double *y, const pGEcontext gc, pDev
 static void canvasPolyline(int n, double *x, double *y, const pGEcontext gc, pDevDesc RGD)
 {
 	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
+	int i=1;
+	fprintf(cGD->fp,"ctx.beginPath(); ctx.moveTo(%f,%f);\n",x[0],y[0]);
+	while(i<n) {
+		fprintf(cGD->fp,"ctx.lineTo(%f,%f);\n",x[i],y[i]);
+		i++;
+	}
+	fprintf(cGD->fp,"ctx.stroke();\n");
 #ifdef CANVASDEBUG
 	{ int i=0;
 	Rprintf("Polyline(n=%d,x=0x%x,y=0x%x,gc=0x%x,RGD=0x%x)\n\tpoints: ",n,x,y,gc,RGD);
@@ -178,7 +201,7 @@ SEXP canvas_new_device(SEXP args)
 	/* canvas Graphics Device */
 	canvasDesc *cGD;
 
-	const char *file = NULL;
+	FILE *fp = NULL;
 	int width, height;
 
 	SEXP v;
@@ -186,33 +209,38 @@ SEXP canvas_new_device(SEXP args)
 	v=CAR(args); args=CDR(args);
 	if (isString(v)){
 		PROTECT(v);
-		file=CHAR(STRING_ELT(v,0));
+		fp = fopen(CHAR(STRING_ELT(v,0)),"w");
 		UNPROTECT(1);
+		if (fp == NULL)
+			error("could not open file");
 	} else {
 		error("file must be a filename");
 	}
 
 	v=CAR(args); args=CDR(args);
-	if (!isNumeric(v)) error("`width' must be a number");
+	if (!isNumeric(v)) {fclose(fp); error("`width' must be a number");}
 	width=asInteger(v);
 	v=CAR(args); args=CDR(args);
-	if (!isNumeric(v)) error("`height' must be a number");
+	if (!isNumeric(v)) {fclose(fp); error("`height' must be a number");}
 	height=asInteger(v);
 #ifdef CANVASDEBUG
-	Rprintf("canvas_new_device(width=%d,height=%d,file=%s)\n", width, height, file);
+	Rprintf("canvas_new_device(width=%d,height=%d,fd=%x)\n", width, height, fp);
 #endif
 	
     R_CheckDeviceAvailable();
 
-	if (!(RGD = (pDevDesc)calloc(1, sizeof(NewDevDesc))))
-		return R_NilValue;
+	if (!(RGD = (pDevDesc)calloc(1, sizeof(NewDevDesc)))){
+		fclose(fp);
+	    error("calloc failed for canvas device");
+	}
 
     if (!(cGD = (canvasDesc *)calloc(1, sizeof(canvasDesc)))){
 		free(RGD);
-	    error("unable to start device mingswf");
-		return R_NilValue;
+		fclose(fp);
+	    error("calloc failed for canvas device");
 	}
-	cGD->file=(char *)file;
+
+	cGD->fp = fp;
 
     RGD->deviceSpecific = (void *) cGD;
 
@@ -251,7 +279,7 @@ SEXP canvas_new_device(SEXP args)
 	RGD->cra[0] = 0.9 * 12;
 	RGD->cra[1] = 1.2 * 12;
 	RGD->gamma = 1.0;
-	RGD->canClip = FALSE;
+	RGD->canClip = TRUE;
     RGD->canChangeGamma = FALSE;
     RGD->canHAdj = 2;
 	RGD->startps = 12.0;
