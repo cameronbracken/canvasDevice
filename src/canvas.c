@@ -16,30 +16,55 @@
 typedef struct _canvasDesc {
 	/* device specific stuff */
 	int col;
-	short lwd;
+	int fill;
+
+	/* Line characteristics */
+	double lwd;
 	int lty;
-	float miterLimit;
+	R_GE_lineend lend;
+	R_GE_linejoin ljoin;
+	double lmitre;
+
 	FILE *fp;
 	pGEDevDesc RGE;
 } canvasDesc;
 
 static void canvasSetLineType( canvasDesc *cGD, pGEcontext gc)
 {
+	/* Line width */
+	if (cGD->lwd != gc->lwd){
+		cGD->lwd = gc->lwd;
+		fprintf(cGD->fp,"ctx.lineWidth = %f; ",cGD->lwd);
+	}
+
 	/* Line end: par lend  */
-	cGD->lty = 0;
-	cGD->miterLimit = 2.0;
-	switch(gc->lend){
-		case GE_ROUND_CAP: cGD->lty =  0; break;
-		case GE_BUTT_CAP: cGD->lty =   0; break;
-		case GE_SQUARE_CAP: cGD->lty = 0; break;
+	if (cGD->lend != gc->lend){
+		cGD->lend = gc->lend;
+		if (cGD->lend == GE_ROUND_CAP)
+			fprintf(cGD->fp,"ctx.lineCap = \"round\"; ");
+		if (cGD->lend == GE_BUTT_CAP)
+			fprintf(cGD->fp,"ctx.lineCap = \"butt\"; ");
+		if (cGD->lend == GE_SQUARE_CAP)
+			fprintf(cGD->fp,"ctx.lineCap = \"square\"; ");
 	}
 
 	/* Line join: par ljoin */
-	switch(gc->ljoin){
-		case GE_ROUND_JOIN: cGD->lty |= 0; break;
-		case GE_MITRE_JOIN: cGD->lty |= 0; break;
-		case GE_BEVEL_JOIN: cGD->lty |= 0; break;
-	} 
+	if (cGD->ljoin != gc->ljoin){
+		cGD->ljoin = gc->ljoin;
+		if (cGD->ljoin == GE_ROUND_JOIN)
+			fprintf(cGD->fp,"ctx.lineJoin = \"round\"; ");
+		if (cGD->ljoin == GE_MITRE_JOIN)
+			fprintf(cGD->fp,"ctx.lineJoin = \"miter\"; ");
+		if (cGD->ljoin == GE_BEVEL_JOIN)
+			fprintf(cGD->fp,"ctx.lineJoin = \"bevel\"; ");
+	}
+
+	/* Miter limit */
+	if (cGD->lmitre != gc->lmitre){
+		cGD->lmitre = gc->lmitre;
+		fprintf(cGD->fp,"ctx.miterLimit = %f; ",cGD->lmitre);
+	}
+	fprintf(cGD->fp,"\n");
 }
 
 static void canvasActivate(const pDevDesc RGD)
@@ -53,7 +78,7 @@ static void canvasCircle(double x, double y, double r, const pGEcontext gc, pDev
 {
 	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
 
-	
+	canvasSetLineType(cGD,gc);
 	fprintf(cGD->fp,"ctx.beginPath(); ctx.arc(%f,%f,%f,0,Math.PI*2,true); ctx.stroke();\n", x, y, r);
 
 #ifdef CANVASDEBUG
@@ -103,6 +128,7 @@ static void canvasLine(double x1, double y1, double x2, double y2, const pGEcont
 {
 	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
 
+	canvasSetLineType(cGD,gc);
 	fprintf(cGD->fp,"ctx.beginPath(); ctx.moveTo(%f,%f); ctx.lineTo(%f,%f); ctx.stroke();\n",x1,y1,x2,y2);
 
 #ifdef CANVASDEBUG
@@ -136,6 +162,7 @@ static void canvasPolygon(int n, double *x, double *y, const pGEcontext gc, pDev
 {
 	int i;
 	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
+	canvasSetLineType(cGD,gc);
 #ifdef CANVASDEBUG
 	{ int i=0;
 	Rprintf("Polygon(n=%d,x=0x%x,y=0x%x,gc=0x%x,RGD=0x%x)\n\tpoints: ",n,x,y,gc,RGD);
@@ -148,6 +175,7 @@ static void canvasPolyline(int n, double *x, double *y, const pGEcontext gc, pDe
 {
 	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
 	int i=1;
+	canvasSetLineType(cGD,gc);
 	fprintf(cGD->fp,"ctx.beginPath(); ctx.moveTo(%f,%f);\n",x[0],y[0]);
 	while(i<n) {
 		fprintf(cGD->fp,"ctx.lineTo(%f,%f);\n",x[i],y[i]);
@@ -164,6 +192,8 @@ static void canvasPolyline(int n, double *x, double *y, const pGEcontext gc, pDe
 
 static void canvasRect(double x0, double y0, double x1, double y1, const pGEcontext gc, pDevDesc RGD)
 {
+	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
+	canvasSetLineType(cGD,gc);
 #ifdef CANVASDEBUG
 	Rprintf("Rect(x0=%f,y0=%f,x1=%f,y1=%f,gc=0x%x,RGD=0x%x)\n",x0,y0,x1,y1,gc,RGD);
 #endif
