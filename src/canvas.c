@@ -208,6 +208,10 @@ static void canvasSize(double *left, double *right, double *bottom, double *top,
 
 static double canvasStrWidth(const char *str, const pGEcontext gc, pDevDesc RGD)
 {
+
+	/* 10px sans-serif is default, so this is just a wild guess. */
+	return strlen(str) * 10;
+
 #ifdef CANVASDEBUG
 	Rprintf("StrWidth(str=%s,gc=0x%x,RGD=0x%x)\n",str,gc,RGD);
 #endif
@@ -215,6 +219,23 @@ static double canvasStrWidth(const char *str, const pGEcontext gc, pDevDesc RGD)
 
 static void canvasText(double x, double y, const char *str, double rot, double hadj, const pGEcontext gc, pDevDesc RGD)
 {
+	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
+	double strstart = 0;
+
+	if (hadj != 0.)
+		strstart = -hadj * strlen(str) * 10;
+
+
+	if (rot != 0.){
+		fprintf(cGD->fp,"ctx.save(); ");
+		fprintf(cGD->fp,"ctx.translate(%f,%f); ",x,y);
+		fprintf(cGD->fp,"ctx.rotate(-%f / 180 * Math.PI); ",rot);
+		fprintf(cGD->fp,"ctx.fillText(\"%s\",%f,0); ",str,strstart);
+		fprintf(cGD->fp,"ctx.restore();\n");
+	} else {
+		fprintf(cGD->fp,"ctx.fillText(\"%s\",%f,%f); ",str,x+strstart,y);
+	}
+
 #ifdef CANVASDEBUG
 	Rprintf("Text(x=%f,y=%f,str=%s,rot=%f,hadj=%f,gc=0x%x,RGD=0x%x)\n",x,y,str,rot,hadj,gc,RGD);
 #endif
