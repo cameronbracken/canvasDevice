@@ -8,12 +8,13 @@
   the CanvasRenderingContext2D javascript api.
 }
 \usage{
-canvas(width = 640, height = 480, file="",...)
+canvas(file="", width = 640, height = 480, bg="transparent",...)
 }
 \arguments{
+  \item{file}{name of the file to be created.}
   \item{width}{width of the plot area.}
   \item{height}{height of the plot area.}
-  \item{file}{name of the file to be created.}
+  \item{bg}{starting background color.}
   \item{...}{not implemented.}
 }
 \value{
