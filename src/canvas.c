@@ -13,6 +13,13 @@
 #endif
 #endif
 
+#define CREDC(C) (((unsigned int)(C))&0xff)
+#define CGREENC(C) ((((unsigned int)(C))&0xff00)>>8)
+#define CBLUEC(C) ((((unsigned int)(C))&0xff0000)>>16)
+#define CALPHA(C) ((((unsigned int)(C))&0xff000000)>>24)
+
+#define canvasColor(fp, prop, col) { if (CALPHA(col)==255) { fprintf(fp, "ctx.%s = \"rgb(%d,%d,%d)\"; ",prop, CREDC(col), CGREENC(col), CBLUEC(col)); } else { fprintf(fp, "ctx.%s = \"rgba(%d,%d,%d,%f)\"; ", prop, CREDC(col), CGREENC(col), CBLUEC(col), ((double)CALPHA(col))/255.); }; }
+
 typedef struct _canvasDesc {
 	/* device specific stuff */
 	int col;
@@ -24,6 +31,7 @@ typedef struct _canvasDesc {
 	R_GE_lineend lend;
 	R_GE_linejoin ljoin;
 	double lmitre;
+
 
 	FILE *fp;
 	pGEDevDesc RGE;
@@ -69,8 +77,9 @@ static void canvasSetLineType( canvasDesc *cGD, pGEcontext gc)
 
 static void canvasActivate(const pDevDesc RGD)
 { 
+	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
 #ifdef CANVASDEBUG
-	Rprintf("Activate(RGD=0x%x)\n",RGD);
+	fprintf(cGD->fp,"//Activate(RGD=0x%x)\n",RGD);
 #endif
 }
 
@@ -78,11 +87,21 @@ static void canvasCircle(double x, double y, double r, const pGEcontext gc, pDev
 {
 	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
 
-	canvasSetLineType(cGD,gc);
-	fprintf(cGD->fp,"ctx.beginPath(); ctx.arc(%f,%f,%f,0,Math.PI*2,true); ctx.stroke();\n", x, y, r);
+	fprintf(cGD->fp,"ctx.beginPath();");
+    fprintf(cGD->fp,"ctx.arc(%f,%f,%f,0,Math.PI*2,true); ", x, y, r);
+	if (CALPHA(gc->fill)){
+		canvasColor(cGD->fp,"fillStyle",gc->fill);
+		fprintf(cGD->fp,"ctx.fill(); ");
+	}
+	if (CALPHA(gc->col) && gc->lty!=-1){
+		canvasSetLineType(cGD,gc);
+		canvasColor(cGD->fp,"strokeStyle",gc->col);
+		fprintf(cGD->fp,"ctx.stroke();");
+	}
+	fprintf(cGD->fp,"\n");
 
 #ifdef CANVASDEBUG
-	Rprintf("Circle(x=%f,y=%f,r=%f,gc=0x%x,RGD=0x%x)\n",x,y,r,gc,RGD);
+	fprintf(cGD->fp,"//Circle(x=%f,y=%f,r=%f,gc=0x%x,RGD=0x%x)\n",x,y,r,gc,RGD);
 	/*Rprintf("\tuser coords: x=%f,y=%f\n",fromDeviceX(x,GE_NDC,MGD->RGE),fromDeviceY(y,GE_NDC,MGD->RGE));*/
 #endif
 }
@@ -90,9 +109,20 @@ static void canvasCircle(double x, double y, double r, const pGEcontext gc, pDev
 static void canvasClip(double x0, double x1, double y0, double y1, pDevDesc RGD)
 {
 	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
-/*	fprintf(cGD->fp,"ctx.beginPath(); ");
-	fprintf(cGD->fp,"ctx.rect(%f,%f,%f,%f); ",x0,y0,x1-x0,y1-y0);
-	fprintf(cGD->fp,"ctx.clip();\n");*/
+
+	/* Too complicated to implement at the moment. The jist is that the context 
+	 * save()/restore() functions save not only the clip region but the current
+	 * transformation matrix and fill and stroke styles.
+	 */
+/*    if (x1<x0) { double h=x1; x1=x0; x0=h; };
+    if (y1<y0) { double h=y1; y1=y0; y0=h; };
+
+	if (RGD->left == x0 && RGD->right == x1 && RGD->top == y0 && RGD->bottom == y1){
+		fprintf(cGD->fp,"ctx.restore();\n");
+	} else {
+		fprintf(cGD->fp,"ctx.rect(%f,%f,%f,%f); ",x0,y0,x1-x0,y1-y0);
+		fprintf(cGD->fp,"ctx.clip();\n");
+	}*/
 #ifdef CANVASDEBUG
 	Rprintf("Clip(x0=%f,y0=%f,x1=%f,y1=%f,RGD=0x%x)\n",x0,y0,x1,y1,RGD);
 #endif
@@ -128,18 +158,26 @@ static void canvasLine(double x1, double y1, double x2, double y2, const pGEcont
 {
 	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
 
+	if (CALPHA(gc->col) && gc->lty!=-1){
 	canvasSetLineType(cGD,gc);
+	canvasColor(cGD->fp,"strokeStyle",gc->col);
 	fprintf(cGD->fp,"ctx.beginPath(); ctx.moveTo(%f,%f); ctx.lineTo(%f,%f); ctx.stroke();\n",x1,y1,x2,y2);
+	}
 
 #ifdef CANVASDEBUG
-	Rprintf("Line(x0=%f,y0=%f,x1=%f,y1=%f,gc=0x%x,RGD=0x%x)\n",x1,y1,x2,y2,gc,RGD);
+	fprintf(cGD->fp,"//Line(x0=%f,y0=%f,x1=%f,y1=%f,gc=0x%x,RGD=0x%x)\n",x1,y1,x2,y2,gc,RGD);
 #endif
 }
 
 static void canvasMetricInfo(int c, const pGEcontext gc, double* ascent, double* descent, double* width, pDevDesc RGD)
 {
+
+	/* Unsure if we'll be able to provide this, as this relies entirely on the fonts
+	 * installed on the browser system
+	 */
+	*ascent = *descent = *width = 0.0;
 #ifdef CANVASDEBUG
-	Rprintf("MetricInfo(c=%d,gc=0x%x,ascent=%f,descent=%f,width=%f,RGD=0x%x)\n",c,gc,ascent,descent,width,RGD);
+	Rprintf("MetricInfo(c=%d,gc=0x%x,ascent=%f,descent=%f,width=%f,RGD=0x%x)\n",c,gc,*ascent,*descent,*width,RGD);
 #endif
 }
 static void canvasMode(int mode, pDevDesc RGD)
@@ -152,7 +190,14 @@ static void canvasMode(int mode, pDevDesc RGD)
 static void canvasNewPage(const pGEcontext gc, pDevDesc RGD)
 {
 	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
-	fprintf(cGD->fp,"/* NewPage */\n");
+	fprintf(cGD->fp,"//NewPage\n");
+
+	/* Set background only if we have a color */
+	if (CALPHA(gc->fill)){
+		canvasColor(cGD->fp,"fillStyle",gc->fill);
+		fprintf(cGD->fp,"ctx.fillRect(0,0,%f,%f);\n",RGD->right,RGD->bottom);
+	}
+
 #ifdef CANVASDEBUG
 	Rprintf("NewPage(gc=0x%x,RGD=0x%x)\n",gc,RGD);
 #endif
@@ -160,32 +205,51 @@ static void canvasNewPage(const pGEcontext gc, pDevDesc RGD)
 
 static void canvasPolygon(int n, double *x, double *y, const pGEcontext gc, pDevDesc RGD)
 {
-	int i;
+	int i=1;
 	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
+
+	if(n<2) return;
+
 	canvasSetLineType(cGD,gc);
+
+	fprintf(cGD->fp,"ctx.beginPath(); ctx.moveTo(%f,%f);\n",x[0],y[0]);
+	while (i<n) { fprintf(cGD->fp,"ctx.lineTo(%f,%f);", x[i], y[i]); i++; }
+	fprintf(cGD->fp,"ctx.closePath(); ");
+	if (CALPHA(gc->fill)) {
+		canvasColor(cGD->fp,"fillStyle",gc->fill);
+		fprintf(cGD->fp,"ctx.fill(); ");
+	}
+	if (CALPHA(gc->col) && gc->lty!=-1) {
+		canvasColor(cGD->fp,"strokeStyle",gc->col);
+		fprintf(cGD->fp,"ctx.stroke(); ");
+	}
+	fprintf(cGD->fp,"\n");
 #ifdef CANVASDEBUG
 	{ int i=0;
-	Rprintf("Polygon(n=%d,x=0x%x,y=0x%x,gc=0x%x,RGD=0x%x)\n\tpoints: ",n,x,y,gc,RGD);
-	while(i<n){ Rprintf("(%.2f,%.2f) ",x[i],y[i]); i++;} Rprintf("\n");
+	fprintf(cGD->fp,"//Polygon(n=%d,x=0x%x,y=0x%x,gc=0x%x,RGD=0x%x)\n\t//points: ",n,x,y,gc,RGD);
+	while(i<n){ fprintf(cGD->fp,"(%.2f,%.2f) ",x[i],y[i]); i++;}; fprintf(cGD->fp,"\n");
 	}
 #endif
 }
 
 static void canvasPolyline(int n, double *x, double *y, const pGEcontext gc, pDevDesc RGD)
 {
-	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
 	int i=1;
-	canvasSetLineType(cGD,gc);
-	fprintf(cGD->fp,"ctx.beginPath(); ctx.moveTo(%f,%f);\n",x[0],y[0]);
-	while(i<n) {
-		fprintf(cGD->fp,"ctx.lineTo(%f,%f);\n",x[i],y[i]);
-		i++;
+	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
+
+	if (n<2) return;
+
+	if (CALPHA(gc->col) && gc->lty!=-1) {
+		fprintf(cGD->fp,"ctx.beginPath(); ctx.moveTo(%f,%f);\n",x[0],y[0]);
+		while(i<n) { fprintf(cGD->fp,"ctx.lineTo(%f,%f);\n",x[i],y[i]); i++; }
+		canvasSetLineType(cGD,gc);
+		canvasColor(cGD->fp,"strokeStyle",gc->col);
+		fprintf(cGD->fp,"ctx.stroke();\n");
 	}
-	fprintf(cGD->fp,"ctx.stroke();\n");
 #ifdef CANVASDEBUG
 	{ int i=0;
-	Rprintf("Polyline(n=%d,x=0x%x,y=0x%x,gc=0x%x,RGD=0x%x)\n\tpoints: ",n,x,y,gc,RGD);
-	while(i<n){ Rprintf("(%.2f,%.2f) ",x[i],y[i]); i++;} Rprintf("\n");
+	fprintf(cGD->fp,"//Polyline(n=%d,x=0x%x,y=0x%x,gc=0x%x,RGD=0x%x)\n\t//points: ",n,x,y,gc,RGD);
+	while(i<n){ fprintf(cGD->fp,"(%.2f,%.2f) ",x[i],y[i]); i++;} fprintf(cGD->fp,"\n");
 	}
 #endif
 }
@@ -193,9 +257,17 @@ static void canvasPolyline(int n, double *x, double *y, const pGEcontext gc, pDe
 static void canvasRect(double x0, double y0, double x1, double y1, const pGEcontext gc, pDevDesc RGD)
 {
 	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
-	canvasSetLineType(cGD,gc);
+	if (CALPHA(gc->fill)){
+		canvasColor(cGD->fp,"fillStyle",gc->fill);
+		fprintf(cGD->fp,"ctx.fillRect(%f,%f,%f,%f); ",x0,y0,x1-x0,y1-y0);
+	}
+	if (CALPHA(gc->col) && gc->lty!=-1){
+		canvasSetLineType(cGD,gc);
+		canvasColor(cGD->fp,"strokeStyle",gc->col);
+		fprintf(cGD->fp,"ctx.strokeRect(%f,%f,%f,%f); ",x0,y0,x1-x0,y1-y0);
+	}
 #ifdef CANVASDEBUG
-	Rprintf("Rect(x0=%f,y0=%f,x1=%f,y1=%f,gc=0x%x,RGD=0x%x)\n",x0,y0,x1,y1,gc,RGD);
+	fprintf(cGD->fp,"//Rect(x0=%f,y0=%f,x1=%f,y1=%f,gc=0x%x,RGD=0x%x)\n",x0,y0,x1,y1,gc,RGD);
 #endif
 
 }
@@ -209,8 +281,8 @@ static void canvasSize(double *left, double *right, double *bottom, double *top,
 static double canvasStrWidth(const char *str, const pGEcontext gc, pDevDesc RGD)
 {
 
-	/* 10px sans-serif is default, so this is just a wild guess. */
-	return strlen(str) * 10;
+	/* 10px sans-serif is default, however 7px provides a better guess. */
+	return strlen(str) * 7;
 
 #ifdef CANVASDEBUG
 	Rprintf("StrWidth(str=%s,gc=0x%x,RGD=0x%x)\n",str,gc,RGD);
@@ -220,24 +292,27 @@ static double canvasStrWidth(const char *str, const pGEcontext gc, pDevDesc RGD)
 static void canvasText(double x, double y, const char *str, double rot, double hadj, const pGEcontext gc, pDevDesc RGD)
 {
 	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
-	double strstart = 0;
 
-	if (hadj != 0.)
-		strstart = -hadj * strlen(str) * 10;
-
-
-	if (rot != 0.){
-		fprintf(cGD->fp,"ctx.save(); ");
-		fprintf(cGD->fp,"ctx.translate(%f,%f); ",x,y);
-		fprintf(cGD->fp,"ctx.rotate(-%f / 180 * Math.PI); ",rot);
-		fprintf(cGD->fp,"ctx.fillText(\"%s\",%f,0); ",str,strstart);
-		fprintf(cGD->fp,"ctx.restore();\n");
+	if (hadj!=0. || rot != 0.){
+		double strextent = strlen(str) * 7; /* wild guess that each char is 10px wide */
+		if (rot!=0.){
+			fprintf(cGD->fp,"ctx.save(); ");
+			canvasColor(cGD->fp,"fillStyle",gc->col);
+			fprintf(cGD->fp,"ctx.translate(%f,%f); ",x,y);
+			fprintf(cGD->fp,"ctx.rotate(-%f / 180 * Math.PI); ",rot);
+			fprintf(cGD->fp,"ctx.fillText(\"%s\",%f,0); ",str,-strextent*hadj);
+			fprintf(cGD->fp,"ctx.restore();\n");
+		} else {
+			canvasColor(cGD->fp,"fillStyle",gc->col);
+			fprintf(cGD->fp,"ctx.fillText(\"%s\",%f,%f); ",str,x - strextent*hadj,y);
+		}
 	} else {
-		fprintf(cGD->fp,"ctx.fillText(\"%s\",%f,%f); ",str,x+strstart,y);
+		canvasColor(cGD->fp,"fillStyle",gc->col);
+		fprintf(cGD->fp,"ctx.fillText(\"%s\",%f,%f); ",str,x,y);
 	}
 
 #ifdef CANVASDEBUG
-	Rprintf("Text(x=%f,y=%f,str=%s,rot=%f,hadj=%f,gc=0x%x,RGD=0x%x)\n",x,y,str,rot,hadj,gc,RGD);
+	fprintf(cGD->fp,"//Text(x=%f,y=%f,str=%s,rot=%f,hadj=%f,gc=0x%x,RGD=0x%x)\n",x,y,str,rot,hadj,gc,RGD);
 #endif
 }
 
@@ -253,7 +328,7 @@ SEXP canvas_new_device(SEXP args)
 	canvasDesc *cGD;
 
 	FILE *fp = NULL;
-	int width, height;
+	int width, height, bgcolor;
 
 	SEXP v;
 	args=CDR(args);
@@ -274,6 +349,10 @@ SEXP canvas_new_device(SEXP args)
 	v=CAR(args); args=CDR(args);
 	if (!isNumeric(v)) {fclose(fp); error("`height' must be a number");}
 	height=asInteger(v);
+	v=CAR(args); args=CDR(args);
+	if (!isString(v) && !isInteger(v) && !isLogical(v) && !isReal(v))
+		error("invalid color specification for `bg'");
+	bgcolor = RGBpar(v, 0);
 #ifdef CANVASDEBUG
 	Rprintf("canvas_new_device(width=%d,height=%d,fd=%x)\n", width, height, fp);
 #endif
@@ -327,19 +406,19 @@ SEXP canvas_new_device(SEXP args)
 	RGD->yLineBias = 0.1;
 	RGD->ipr[0] = 1.0/72.0;
 	RGD->ipr[1] = 1.0/72.0;
-	RGD->cra[0] = 0.9 * 12;
-	RGD->cra[1] = 1.2 * 12;
+	RGD->cra[0] = 0.9 * 10;
+	RGD->cra[1] = 1.2 * 10;
 	RGD->gamma = 1.0;
-	RGD->canClip = TRUE;
+	RGD->canClip = FALSE;
     RGD->canChangeGamma = FALSE;
     RGD->canHAdj = 2;
-	RGD->startps = 12.0;
+	RGD->startps = 10.0;
 	RGD->startcol = R_RGB(0,0,0);
-	RGD->startfill = 0xffffffff;
+	RGD->startfill = bgcolor;
 	RGD->startlty = LTY_SOLID;
 	RGD->startfont = 1;
 	RGD->startgamma = RGD->gamma;
-    RGD->displayListOn = TRUE;
+    RGD->displayListOn = FALSE;
 
 	/* Add to the device list */
 	RGE = GEcreateDevDesc(RGD);

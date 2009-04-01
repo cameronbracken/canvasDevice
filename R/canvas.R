@@ -1,3 +1,3 @@
-canvas <- function(width=480, height=480, file="", ...) {
-	invisible(.External("canvas_new_device", file, width, height, ..., PACKAGE="canvas"))
+canvas <- function(file="", width=480, height=480, bg="transparent", ...) {
+	invisible(.External("canvas_new_device", file, width, height, bg, ..., PACKAGE="canvas"))
 }
