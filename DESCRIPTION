@@ -1,5 +1,5 @@
 Package: canvas
-Version: 0.2-0
+Version: 0.3-0
 Title: R graphics device targeting the HTML canvas element.
 Author: Jeffrey Horner <jeffrey.horner@gmail.com>
 Maintainer: Jeffrey Horner <jeffrey.horner@gmail.com>

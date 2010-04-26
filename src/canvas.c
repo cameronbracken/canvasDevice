@@ -273,6 +273,9 @@ static void canvasRect(double x0, double y0, double x1, double y1, const pGEcont
 }
 static void canvasSize(double *left, double *right, double *bottom, double *top, pDevDesc RGD)
 {
+	*left = *top = 0.0;
+	*right = RGD->right;
+	*bottom = RGD->bottom;
 #ifdef CANVASDEBUG
 	Rprintf("Size(left=%f,right=%f,bottom=%f,top=%f,RGD=0x%x)\n",*left,*right,*bottom,*top,RGD);
 #endif
