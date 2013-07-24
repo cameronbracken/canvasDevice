@@ -1,29 +1,39 @@
 \name{canvas}
 \alias{canvas}
-\title{
-  R graphics device targetting the HTML canvas element
-}
-\description{
-  \code{canvas} initializes a new graphics device that implements
-  the CanvasRenderingContext2D javascript api.
-}
+\title{Canvas Graphics Device}
 \usage{
-canvas(file="", width = 640, height = 480, bg="transparent",...)
+  canvas(file = "", width = 640, height = 480,
+    bg = "transparent", ...)
 }
 \arguments{
-  \item{file}{name of the file to be created.}
-  \item{width}{width of the plot area.}
-  \item{height}{height of the plot area.}
-  \item{bg}{starting background color.}
-  \item{...}{not implemented.}
+  \item{file}{A character string indicating the desired
+  path to the output file.}
+
+  \item{width}{The width of the output figure, in
+  \bold{pixels}.}
+
+  \item{height}{The height of the output figure, in
+  \bold{pixels}.}
+
+  \item{bg}{The starting background color for the plot.}
 }
 \value{
-  Returns the NULL value invisibly.
+  Returns NULL invisibly.
+}
+\description{
+  R graphics device targetting the HTML canvas element
+}
+\details{
+  Initializes a new graphics device that implements the
+  CanvasRenderingContext2D javascript api.
 }
 \examples{
-# very simple plot
+\dontrun{
+	# very simple plot
 canvas(600, 600, file="plot.js")
 plot(rnorm(4000),rnorm(4000),col="#ff000018",pch=19,cex=2) # semi-transparent red
 dev.off() # creates a file "plot.js" with the above plot
 }
+}
 \keyword{device}
+

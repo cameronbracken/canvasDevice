@@ -1,1 +1,3 @@
-exportPattern("^canvas")
+export(canvas)
+export(fontMetrics)
+useDynLib(canvasDevice,canvas_new_device)

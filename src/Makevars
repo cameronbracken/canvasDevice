@@ -1,0 +1,22 @@
+PKG_CPPFLAGS = -I./freetype/config -I./freetype/include -I.
+PKG_LIBS = -L./freetype -lfreetype -L./zlib -lz
+
+
+.PHONY: all clean
+
+all: $(SHLIB)
+
+$(SHLIB): zlib/libz.a freetype/libfreetype.a
+
+zlib/libz.a:
+	cd zlib && $(MAKE) all CC="$(CC)" AR="$(AR)" CPPFLAGS="$(R_XTRA_CPPFLAGS)" CFLAGS="$(ALL_CFLAGS)"
+
+freetype/libfreetype.a:
+	cd freetype && $(MAKE) all CC="$(CC)" AR="$(AR)" CPPFLAGS="$(R_XTRA_CPPFLAGS)" CFLAGS="$(ALL_CFLAGS)"
+
+clean:
+	$(RM) *.o
+	$(RM) *.dll
+	$(RM) *.so
+	cd zlib && $(MAKE) clean
+	cd freetype && $(MAKE) clean

@@ -1,41 +1,4 @@
-#include <stdio.h>
-
-#include <R.h>
-#include <Rversion.h>
-#include <Rinternals.h>
-#include <R_ext/Rdynload.h>
-#include <R_ext/GraphicsEngine.h>
-#include <R_ext/GraphicsDevice.h>
-
-#if R_VERSION >= R_Version(2,8,0)
-#ifndef NewDevDesc
-#define NewDevDesc DevDesc
-#endif
-#endif
-
-#define CREDC(C) (((unsigned int)(C))&0xff)
-#define CGREENC(C) ((((unsigned int)(C))&0xff00)>>8)
-#define CBLUEC(C) ((((unsigned int)(C))&0xff0000)>>16)
-#define CALPHA(C) ((((unsigned int)(C))&0xff000000)>>24)
-
-#define canvasColor(fp, prop, col) { if (CALPHA(col)==255) { fprintf(fp, "ctx.%s = \"rgb(%d,%d,%d)\"; ",prop, CREDC(col), CGREENC(col), CBLUEC(col)); } else { fprintf(fp, "ctx.%s = \"rgba(%d,%d,%d,%f)\"; ", prop, CREDC(col), CGREENC(col), CBLUEC(col), ((double)CALPHA(col))/255.); }; }
-
-typedef struct _canvasDesc {
-	/* device specific stuff */
-	int col;
-	int fill;
-
-	/* Line characteristics */
-	double lwd;
-	int lty;
-	R_GE_lineend lend;
-	R_GE_linejoin ljoin;
-	double lmitre;
-
-
-	FILE *fp;
-	pGEDevDesc RGE;
-} canvasDesc;
+include "canvasDevice.h"
 
 static void canvasSetLineType( canvasDesc *cGD, pGEcontext gc)
 {
@@ -108,7 +71,7 @@ static void canvasCircle(double x, double y, double r, const pGEcontext gc, pDev
 
 static void canvasClip(double x0, double x1, double y0, double y1, pDevDesc RGD)
 {
-	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
+	//canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
 
 	/* Too complicated to implement at the moment. The jist is that the context 
 	 * save()/restore() functions save not only the clip region but the current
@@ -152,6 +115,7 @@ static Rboolean canvasLocator(double *x, double *y, pDevDesc RGD)
 #ifdef CANVASDEBUG
 	Rprintf("Locator(x=%f,y=%f,RGD=0x%x)\n",x,y,RGD);
 #endif
+	return FALSE;
 }
 
 static void canvasLine(double x1, double y1, double x2, double y2, const pGEcontext gc, pDevDesc RGD)
@@ -284,6 +248,12 @@ static void canvasSize(double *left, double *right, double *bottom, double *top,
 static double canvasStrWidth(const char *str, const pGEcontext gc, pDevDesc RGD)
 {
 
+	const char *font_name = "/Library/Fonts/Arial Black.ttf";
+	const int char_codes[3] = { 38, 39, 40 };
+	const int num_chars = 3;
+	const int point_size = 12;
+
+	StringMetrics m = getFreetypeMetrics(font_name, &char_codes[0], num_chars, point_size);
 	/* 10px sans-serif is default, however 7px provides a better guess. */
 	return strlen(str) * 7;
 
@@ -292,7 +262,8 @@ static double canvasStrWidth(const char *str, const pGEcontext gc, pDevDesc RGD)
 #endif
 }
 
-static void canvasText(double x, double y, const char *str, double rot, double hadj, const pGEcontext gc, pDevDesc RGD)
+static void canvasText(double x, double y, const char *str, 
+	double rot, double hadj, const pGEcontext gc, pDevDesc RGD)
 {
 	canvasDesc *cGD = (canvasDesc *)RGD->deviceSpecific;
 
@@ -431,13 +402,4 @@ SEXP canvas_new_device(SEXP args)
 
 	/*return ScalarInteger(1 + GEdeviceNumber(RGE));*/
     return R_NilValue;
-}
-
-R_ExternalMethodDef canvas_externals[] = {
-	{"canvas_new_device",(DL_FUNC) &canvas_new_device,3},
-	{NULL,NULL,0}
-};
-
-void R_init_canvas(DllInfo *info){
-	R_registerRoutines(info, NULL, NULL, NULL, canvas_externals);
 }
