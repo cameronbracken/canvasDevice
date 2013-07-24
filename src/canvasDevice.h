@@ -46,10 +46,6 @@ typedef struct _canvasDesc {
     FILE *fp;
     pGEDevDesc RGE;
 
-#ifdef CANVASDEBUG
-    Rboolean debug = TRUE;
-#else
-    Rboolean debug = FALSE;
-#endif
+    Rboolean debug;
 
 } canvasDesc;
