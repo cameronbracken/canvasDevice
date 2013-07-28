@@ -1,4 +1,4 @@
-#' Freetype Metrics
+#' Font Metrics
 #'
 #' Get font metrics from freetype
 #' 
@@ -24,7 +24,7 @@
 #' }
 #'
 #' @export
-#' @useDynLib canvasDevice canvas_new_device
+#' @useDynLib canvasDevice 
 fontMetrics <- function(string, file="", ps = 12, encoding = "UTF-8") {
 
     # check if the file exists otherwise bail out

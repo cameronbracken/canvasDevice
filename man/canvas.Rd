@@ -2,8 +2,8 @@
 \alias{canvas}
 \title{Canvas Graphics Device}
 \usage{
-  canvas(file = "", width = 640, height = 480,
-    bg = "transparent", ...)
+  canvas(filename = "", width = 640, height = 480,
+    bg = "transparent", fg = "black")
 }
 \arguments{
   \item{file}{A character string indicating the desired

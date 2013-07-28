@@ -1,9 +1,8 @@
-\name{fontMetrics}
-\alias{fontMetrics}
+\name{fontLoader}
+\alias{fontLoader}
 \title{Font Metrics}
 \usage{
-  fontMetrics(string, file = "", ps = 12,
-    encoding = "UTF-8")
+  fontLoader(file = "")
 }
 \arguments{
   \item{file}{font file (must be readable by freetype)}

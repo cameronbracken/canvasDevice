@@ -13,3 +13,4 @@ Collate:
     'canvas.R'
     'zzz.R'
     'freetypeMetrics.R'
+    'canvasFont.R'

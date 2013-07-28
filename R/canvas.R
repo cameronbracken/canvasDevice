@@ -25,7 +25,9 @@
 #' }
 #'
 #' @export
-#' @useDynLib canvasDevice canvas_new_device
-canvas <- function(file="", width=640, height=480, bg="transparent", ...) {
-	invisible(.External("canvas_new_device", file, width, height, bg, ..., PACKAGE="canvasDevice"))
+#' @useDynLib canvasDevice
+canvas <- function(filename="", width=640, height=480, bg="transparent", fg="black") {
+	invisible(.Call("canvasNewDevice", as.character(filename), 
+        as.integer(width), as.integer(height), as.character(bg), as.character(fg),
+        as.environment(.canvasInternal), PACKAGE="canvasDevice"))
 }

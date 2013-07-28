@@ -1,3 +1,6 @@
 export(canvas)
+export(canvasFontPaths)
+export(canvasFonts)
 export(fontMetrics)
-useDynLib(canvasDevice,canvas_new_device)
+export(registerFontFamily)
+useDynLib(canvasDevice)
